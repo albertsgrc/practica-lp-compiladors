@@ -242,7 +242,10 @@ struct Robot {
 
 	void initialize(AST*);
 	void turnLeft();
-	void tryToMove();
+	void move();
+	void pickBeeper();
+	void putBeeper();
+	bool foundBeeper();
 };
 
 // # Function definitions
@@ -253,9 +256,9 @@ class FunctionDefinitions { // Implements finding function definitions in O(1) a
 	public:
 		inline void add(AST* definition) {
 			// TODO: Què s'ha de fer si ja està definida?
-			string id = definition->down->text;
-			AST* insList = definition->down->right;
-			map[id] = insList;
+			string id = definition->text;
+			AST* insList = definition->right;
+			map[id] = child(insList, 0);
 		}
 
 		inline AST* get(const string& id) const {
@@ -285,11 +288,6 @@ FunctionDefinitions functionDefinitions;
 
 // # Utils
 
-// Useful to use strings in a switch statement
-constexpr unsigned int si(const char* str, int h = 0) {
-  return !str[h] ? 5381 : (si(str, h + 1)*33) ^ str[h];
-}
-
 // To parse strings to integers
 inline int sti(const string& s) { 
 	return atoi(s.c_str());
@@ -298,11 +296,11 @@ inline int sti(const string& s) {
 // # Orientation
 
 inline Orientation sToOrientation(const string& s) {
-	switch (si(s.c_str())) {
-		case si("up"): return Orientation::UP;
-		case si("right"): return Orientation::RIGHT;
-		case si("down"): return Orientation::DOWN;
-		case si("left"): return Orientation::LEFT;
+	switch (s[0]) {
+		case 'u': return Orientation::UP;
+		case 'r': return Orientation::RIGHT;
+		case 'd': return Orientation::DOWN;
+		case 'l': return Orientation::LEFT;
 	}
 }
 
@@ -344,14 +342,14 @@ inline bool Pose::isClear() const {
 // # World
 
 void World::initialize(AST* worldNode) {
-	this->sizeX = sti(worldNode->down->kind);
-	this->sizeY = sti(worldNode->down->right->kind);
+	this->sizeX = sti(worldNode->kind);
+	this->sizeY = sti(worldNode->right->kind);
 }
 
 void World::addBeeper(AST* beeperNode) {
 	// TODO: Què s'ha de fer si ja hi és?
 
-	AST* xNode = beeperNode->down;
+	AST* xNode = beeperNode;
 	AST* yNode = xNode->right;
 	AST* amountNode = yNode->right;
 
@@ -363,8 +361,6 @@ void World::addBeeper(AST* beeperNode) {
 
 void World::addWalls(AST* wallsNode) {
 	// TODO: Què s'ha de fer si ja hi són?
-
-	wallsNode = wallsNode->down;
 
 	while (wallsNode != NULL) {
 		AST* xNode = wallsNode;
@@ -401,7 +397,7 @@ bool World::pickBeeper(const Position& position) {
 // # Robot
 
 void Robot::initialize(AST* robotNode) {
-	AST* xNode = robotNode->down;
+	AST* xNode = robotNode;
 	AST* yNode = xNode->right;
 	AST* beeperCountNode = yNode->right;
 	AST* orientationNode = beeperCountNode->right;
@@ -425,7 +421,7 @@ void Robot::turnLeft() {
 	}
 }
 
-void Robot::tryToMove() {
+void Robot::move() {
 	if (not isOn) return;
 
 	Position destiny = this->pose.nextPosition();
@@ -433,91 +429,100 @@ void Robot::tryToMove() {
 	if (destiny.insideWorld() and this->pose.isClear()) this->pose.advance();
 }
 
+void Robot::pickBeeper() {
+	if (not isOn) return;
+
+	if (world.pickBeeper(pose.position)) ++beeperCount;
+	else cerr << "Cannot pick beeper because there's no beeper in the current robot's position!" << endl;
+	// TODO: Què passa si a la posició no n'hi ha?
+}
+
+void Robot::putBeeper() {
+	if (not isOn) return;
+
+	if (beeperCount > 0) {
+		--beeperCount;
+		world.putBeeper(pose.position);
+	}
+	else cerr << "Cannot put beeper because robot has no beepers left!" << endl; 
+	// TODO: Què passa si no en té?
+}
+
+bool Robot::foundBeeper() {
+	// TODO: Ha de retornar cert si el robot està apagat?
+	return isOn and pose.position.hasBeeper();
+}
+
 // # Evaluation
 
 bool evaluateCondition(AST* a) {
 	AST* fc;
 
-	switch (si(a->kind.c_str())) {
-		case si("foundBeeper"): return robot.pose.position.hasBeeper();
-		case si("isClear"): return robot.pose.isClear();
-		case si("anyBeepersInBag"): return robot.beeperCount > 0;
-
-		case si("not"): return not evaluateCondition(child(a, 0));
-		case si("and"): fc = child(a, 0); return evaluateCondition(fc) and evaluateCondition(fc->right);
-		case si("or"): fc = child(a, 0); return evaluateCondition(fc) or evaluateCondition(fc->right);
+	if (a->kind == "foundBeeper") return robot.foundBeeper();
+	else if (a->kind == "isClear") return robot.pose.isClear();
+	else if (a->kind == "anyBeepersInBag") return robot.beeperCount > 0;
+	else if (a->kind == "not") return not evaluateCondition(child(a, 0));
+	else if (a->kind == "and") {
+		fc = child(a, 0); 
+		return evaluateCondition(fc) and evaluateCondition(fc->right);
+	}
+	else if (a->kind == "or") {
+		fc = child(a, 0);
+		return evaluateCondition(fc) or evaluateCondition(fc->right);	
 	}
 }
 
-void evaluateDefinitions(AST* list) {
-	AST* currDefinition = list->down;
+void evaluateDefinitions(AST* def) {
+	while (def != NULL) {
+		if (def->kind == "walls") world.addWalls(child(def, 0));
+		else if (def->kind == "beepers") world.addBeeper(child(def, 0));
+		else if (def->kind == "define") functionDefinitions.add(child(def, 0));
 
-	while (currDefinition != NULL) {
-		switch (si(currDefinition->kind.c_str())) {
-			case si("walls"):  world.addWalls(currDefinition); break;
-			case si("beepers"): world.addBeeper(currDefinition); break;
-			case si("define"): functionDefinitions.add(currDefinition); break;
-		}
-
-		advance(currDefinition);
+		advance(def);
 	}
 }
 
-void evaluateInstructions(AST* list) {
-	AST* currInstruction = list->down;
+void evaluateInstructions(AST*);
 
-	while (currInstruction != NULL) {
-		int times;
+void evaluateIterate(AST* iterate) {
+	int times = sti(iterate->kind);
+	AST* insList = iterate->right;
 
-		switch(si(currInstruction->kind.c_str())) {
-			case si("iterate"):
-				times = sti(currInstruction->down->kind);
-				while (times--) evaluateInstructions(currInstruction->down->right);
-				break;
-			case si("if"):
-				if (evaluateCondition(currInstruction->down)) evaluateInstructions(currInstruction->down->right);
-				break;
-			case si("turnleft"): robot.turnLeft(); break;
-			case si("move"): robot.tryToMove(); break;
-			case si("putbeeper"):
-				if (not robot.isOn) break;
+	while (times--) evaluateInstructions(child(insList, 0));
+} 
 
-				if (robot.beeperCount > 0) {
-					--robot.beeperCount;
-					world.putBeeper(robot.pose.position);
-				}
-				else cerr << "Cannot put beeper because robot has no beepers left!" << endl; 
-				// TODO: Què passa si no en té?
+void evaluateIf(AST* _if) {
+	if (evaluateCondition(_if)) evaluateInstructions(child(_if->right, 0));
+}
 
-				break;
-			case si("pickbeeper"):
-				if (not robot.isOn) break;
+void evaluateInstructions(AST* instr) {
+	while (instr != NULL) {
+		if (instr->kind == "iterate") evaluateIterate(child(instr, 0));
+		else if (instr->kind == "if") evaluateIf(child(instr, 0));
+		else if (instr->kind == "turnleft") robot.turnLeft();
+		else if (instr->kind == "move") robot.move();
+		else if (instr->kind == "putbeeper") robot.putBeeper();
+		else if (instr->kind == "pickbeeper") robot.pickBeeper();
+		else if (instr->kind == "id") evaluateInstructions(functionDefinitions.get(instr->text)); 
+		else if (instr->kind == "turnoff") robot.turnOff();
 
-				if (world.pickBeeper(robot.pose.position)) ++robot.beeperCount;
-				else cerr << "Cannot pick beeper because there's no beeper in the current robot's position!" << endl;
-				// TODO: Què passa si a la posició no n'hi ha?
-
-				break;
-			case si("id"): evaluateInstructions(functionDefinitions.get(currInstruction->text)); break;
-			case si("turnoff"): robot.turnOff(); break;
-		}
-
-		advance(currInstruction);
+		advance(instr);
 	}
 }
 
 // # Main methods
 
 void newPosition(AST* root) {
-	AST* worldNode = root->down;
+	AST* worldNode = child(root, 0);
 	AST* robotNode = worldNode->right;
 	AST* definitionsList = robotNode->right;
 	AST* instructionsList = definitionsList->right;
 	
-	world.initialize(worldNode); 
-	robot.initialize(robotNode);
-	evaluateDefinitions(definitionsList);
-	evaluateInstructions(instructionsList);
+	world.initialize(child(worldNode, 0)); 
+	robot.initialize(child(robotNode, 0));
+
+	evaluateDefinitions(child(definitionsList, 0));
+	evaluateInstructions(child(instructionsList, 0));
 
 	cout << robot.pose.position << endl;
 }
