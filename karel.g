@@ -161,31 +161,31 @@ ostream& operator<<(ostream& s, const Orientation& orientation) {
 
 // # Position
 struct Position {
-	int i, j;
+	int x, y;
 
 	// TODO: S'ha de comprovar que les posicions siguin correctes?
 	Position() {}
-	Position(int i, int j) : i(i), j(j) {} 
-	Position(const Position& p) : i(p.i), j(p.j) {}
+	Position(int x, int y) : x(x), y(y) {} 
+	Position(const Position& p) : x(p.x), y(p.y) {}
 
 	bool insideWorld() const;
 	bool hasBeeper() const;
 
 	inline bool operator==(const Position& other) const {
-		return other.i == i and other.j == j;
+		return other.x == x and other.y == y;
 	}
 
 	friend ostream& operator<<(ostream& s, const Position& position) {
-		s << position.i << ' ' << position.j;
+		s << position.x << ' ' << position.y;
 		return s;
 	}
 
 	inline Position& operator+=(const Orientation& orientation) {
 		switch (orientation) {
-			case Orientation::UP: --i; break;
-			case Orientation::RIGHT: ++j; break;
-			case Orientation::DOWN: ++i; break;
-			case Orientation::LEFT: --j; break;
+			case Orientation::UP: --y; break;
+			case Orientation::RIGHT: ++x; break;
+			case Orientation::DOWN: ++y; break;
+			case Orientation::LEFT: --x; break;
 			default: ASR_ERROR("Invalid orientation"); // DEBUG
 		}
 
@@ -233,8 +233,8 @@ namespace std {
 	template <> struct hash<Position> {
 		size_t operator()(const Position& position) const {
 			size_t seed = 0;
-			hash_combine(seed, position.i); 
-			hash_combine(seed, position.j);
+			hash_combine(seed, position.x); 
+			hash_combine(seed, position.y);
 			return seed; 
 	}   };
 	template <> struct hash<Pose> { 
@@ -247,9 +247,7 @@ namespace std {
 
 // # World
 struct World {
-	static const int COORD_ORIGIN = 1; // Min value for i and j coords
-
-	int sizeI, sizeJ;
+	int sizeX, sizeY;
 
 	unordered_set<Pose> walls;
 	unordered_map<Position, int> beepers;
@@ -342,9 +340,9 @@ inline AST* advance(AST*& a) {
 }
 
 bool Position::insideWorld() const {
-	return (World::COORD_ORIGIN <= this->i and this->i <= world.sizeI) 
+	return (0 <= this->x and this->x <= world.sizeX) 
 			and 
-		   (World::COORD_ORIGIN <= this->j and this->j <= world.sizeJ);
+		   (0 <= this->y and this->y <= world.sizeY);
 }
 
 bool Position::hasBeeper() const {
@@ -365,14 +363,15 @@ Pose equivalentWall(const Pose& wall) {
 	return Pose(wall.position + wall.orientation, opposite(wall.orientation));
 }
 
-// PRE: this->position.insideWorld() is true
+// PRE: this->position.xnsideWorld() is true
 bool Pose::isClear() const {
 	return world.walls.find(*this) == world.walls.end() and world.walls.find(equivalentWall(*this)) == world.walls.end();
 }
 
 void World::initialize(AST* worldNode) {
-	this->sizeI = sti(worldNode->down->kind);
-	this->sizeJ = sti(worldNode->down->right->kind);
+	// TODO: Quin node es quina dimensio?
+	this->sizeX = sti(worldNode->down->kind);
+	this->sizeY = sti(worldNode->down->right->kind);
 }
 
 void Robot::initialize(AST* robotNode) {
@@ -381,8 +380,8 @@ void Robot::initialize(AST* robotNode) {
 	AST* beeperCountNode = jNode->right;
 	AST* orientationNode = beeperCountNode->right;
 
-	this->pose.position.i = sti(iNode->kind);
-	this->pose.position.j = sti(jNode->kind);
+	this->pose.position.x = sti(iNode->kind);
+	this->pose.position.y = sti(jNode->kind);
 	this->beeperCount = sti(beeperCountNode->kind);
 	this->pose.orientation = sToOrientation(orientationNode->kind);
 	
@@ -581,14 +580,14 @@ char b_normal[] = { 0x1b, '[', '1', ';', '4', '9', 'm', 0 };
 char normal[] = { 0x1b, '[', '1', ';', '3', '0', 'm', 0 };
 char default_st[] = { 0x1b, '[', '1', ';', '3', '9', 'm', 0 };
 
-void print_cell_elem(int row, int col, int i, int j, bool fuckingCorner = false) {
+void print_cell_elem(int row, int col, int x, int y, bool fuckingCorner = false) {
 	const string cellFormat[] = {
 		"WTTTO",
 		"LUXSR",
 		"YBBBV"
    	};
 
-   	Position position(i, j);
+   	Position position(x, y);
 
    	bool leftWall = not Pose(position, sToOrientation("left")).isClear();
    	bool rightWall = not Pose(position, sToOrientation("right")).isClear();
@@ -656,17 +655,17 @@ void print_world() {
 
    	cout << endl << back_st << normal;
 
-	for (int i = 1; i <= world.sizeI; ++i) {
+	for (int y = 0; y < world.sizeY; ++y) {
 		for (int row = 0; row < N_ROWS; ++row) {
-			for (int j = 1; j <= world.sizeJ; ++j) {
-				for (int col = 0; col < N_COLS; ++col) print_cell_elem(row, col, i, j, row == 0 and col == 0);
+			for (int x = 0; x < world.sizeX; ++x) {
+				for (int col = 0; col < N_COLS; ++col) print_cell_elem(row, col, x, y, row == 0 and col == 0);
 			}
-			print_cell_elem(row, N_COLS, i, world.sizeJ);
+			print_cell_elem(row, N_COLS, world.sizeX, y);
 			cout << endl;
 		}
 	}
 
-	for (int i = 0; i < N_COLS*world.sizeJ + 1; ++i) print_cell_elem(N_ROWS, i%N_COLS, world.sizeI, i/N_COLS + 1);
+	for (int i = 0; i < N_COLS*world.sizeX + 1; ++i) print_cell_elem(N_ROWS, i%N_COLS, i/N_COLS, world.sizeY);
 
 	cout << endl << b_normal << default_st << "Robot: " << (robot.isOn ? "ON, " : "OFF, ") << robot.beeperCount << " beepers" << endl;
 
