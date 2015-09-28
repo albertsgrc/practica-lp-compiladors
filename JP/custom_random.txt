@@ -1,0 +1,221 @@
+WoRld 25 40
+robot 1 1 600 left
+
+walls [1 1 right, 5 5 down, 5 5 up, 10 10 left, 10 10 right, 10 10 up, 10 10 down]
+walls [2 3 left, 7 5 right, 9 10 down, 2 7 up, 5 2 down, 5 2 left, 17 12 up, 18 10 down, 20 20 right, 7 6 left]
+
+beepers 2 7 3
+beepers 5 3 1
+beepers 8 2 7
+beepers 20 20 1
+beepers 3 5 2
+beepers 9 2 3
+
+walls [9 2 left]
+
+walls [1 17 left, 2 17 left, 3 17 left, 4 17 left, 5 17 left, 8 17 left, 9 17 left, 10 17 left, 11 17 left, 12 17 left, 13 17 left, 14 17 left, 15 17 left, 16 17 left, 17 17 left, 18 17 left]
+
+walls [9 11 down, 9 12 down, 9 16 down]
+
+walls [1 17 down, 1 18 down, 1 19 down, 1 20 down]
+
+walls [1 1 up, 1 2 up, 1 3 up, 1 4 up, 1 5 up, 1 6 up, 1 7 up, 1 8 up, 1 9 up, 1 10 up, 1 11 up, 1 12 up, 1 13 up, 1 14 up, 1 15 up, 1 16 up]
+
+walls [20 1 down, 20 2 down, 20 3 down, 20 4 down, 20 5 down, 20 6 down, 20 7 down, 20 8 down, 20 9 down, 20 10 down, 20 11 down, 20 12 down, 20 13 down, 20 14 down, 20 15 down, 20 16 down, 20 17 down, 20 18 down, 20 19 down, 20 20 down]
+
+walls [1 1 left, 2 1 left, 3 1 left, 4 1 left, 5 1 left, 6 1 left, 7 1 left, 8 1 left, 9 1 left, 10 1 left, 11 1 left, 12 1 left, 13 1 left, 14 1 left, 15 1 left, 16 1 left, 17 1 left, 18 1 left, 19 1 left, 20 1 left]
+
+walls [1 20 right, 2 20 right, 13 20 right, 14 20 right, 15 20 right, 16 20 right, 17 20 right, 18 20 right, 19 20 right, 20 20 right]
+
+beepers 10 10 57
+beepers 15 2 2
+beepers 13 7 5
+beepers 18 2 1
+beepers 4 17 2
+beepers 5 8 1
+beepers 7 9 2
+beepers 10 15 2
+beepers 13 17 1
+beepers 10 12 3
+beepers 6 14 2
+beepers 7 15 2
+beepers 7 9 1
+beepers 14 13 2
+beepers 14 14 1
+beepers 17 16 2
+beepers 2 19 1
+beepers 7 19 1
+beepers 15 18 2
+beepers 6 1 6
+
+beepers 1 1 1
+beepers 1 2 2
+beepers 1 3 3
+beepers 1 4 4
+beepers 1 5 5
+beepers 1 6 6
+beepers 1 7 7
+beepers 1 8 8
+beepers 1 9 9
+beepers 1 10 10
+beepers 1 11 11
+beepers 1 12 12
+beepers 1 13 13
+beepers 1 14 14
+beepers 1 15 15
+beepers 1 16 16
+beepers 1 17 17
+beepers 1 18 18
+beepers 1 19 19
+beepers 1 20 20
+
+walls [2 16 down, 2 16 left, 13 2 up, 15 3 down, 19 6 up]
+
+walls [1 2 down, 2 1 right, 3 3 up, 3 3 right, 4 3 right, 4 4 down]
+
+define pickAllBeepers {
+    if foundBeeper {
+        pickbeeper;
+        pickAllBeepers;
+    }
+}
+
+define turnright { turnleft; turnleft; turnleft; }
+
+define turnLeftUntilClear {
+    iterate 3 {
+        if not isClear { turnleft; }
+    }
+}
+
+define turnRightUntilClear {
+    iterate 3 {
+        if not isClear { turnright; }
+    }
+}
+
+define doWorkLeft {
+    pickAllBeepers;
+
+    if not anyBeepersInBag { turnoff; }
+
+    putbeeper;
+
+    turnLeftUntilClear;
+
+    if not isClear { turnoff; }
+
+    move;
+}
+
+define doWorkRight {
+    pickAllBeepers;
+
+    if not anyBeepersInBag { turnoff; }
+
+    putbeeper;
+
+    turnRightUntilClear;
+
+    if not isClear { turnoff; }
+
+    move;
+}
+
+
+define work_sample_1 {
+    doWorkLeft;
+    doWorkRight;
+    doWorkRight;
+    doWorkRight;
+    turnleft;
+    doWorkLeft;
+    doWorkRight;
+    turnleft;
+    doWorkLeft;
+    doWorkLeft;
+    doWorkLeft;
+    turnright;
+    doWorkLeft;
+    doWorkLeft;
+}
+
+define work_sample_2 {
+    turnleft;
+    doWorkLeft;
+    doWorkRight;
+    doWorkRight;
+    turnright;
+    doWorkLeft;
+    doWorkLeft;
+    turnleft;
+}
+
+define work_sample_3 {
+    doWorkLeft;
+    doWorkRight;
+    doWorkLeft;
+    doWorkRight;
+    turnleft;
+    doWorkLeft;
+    doWorkRight;
+    turnleft;
+    doWorkLeft;
+    turnright;
+    doWorkLeft;
+}
+
+define work_sample_4 {
+    work_sample_3;
+    work_sample_1;
+    work_sample_1;
+    work_sample_2;
+}
+
+define work_sample_5 {
+    work_sample_3;
+    work_sample_4;
+    work_sample_1;
+    turnright;
+    work_sample_4;
+}
+
+define work {
+    work_sample_1;
+    work_sample_2;
+    work_sample_3;
+    work_sample_4;
+    work_sample_5;
+}
+
+define work_reverse {
+    work_sample_5;
+    work_sample_4;
+    work_sample_3;
+    work_sample_2;
+    work_sample_1;
+}
+
+define work_random {
+    work_sample_3;
+    work_sample_3;
+    work_sample_2;
+    work_sample_5;
+    work_sample_4;
+    work_sample_1;
+    work_sample_2;
+}
+
+begin
+
+iterate 400 {
+    work;
+
+    iterate 3 { work; }
+    iterate 5 { work; }
+    iterate 7 { work_reverse; }
+    iterate 11 { work; }
+    iterate 17 { work_reverse; work_random; }
+}
+
+end
