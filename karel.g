@@ -649,10 +649,10 @@ void print_cell_elem(int row, int col, int i, int j, bool fuckingCorner = false)
 
 // DEBUG
 void print_world() {
-   	/*const int N_ROWS = 2;
+   	const int N_ROWS = 2;
    	const int N_COLS = 4;
 
-   	const int FRAME_RATE_PER_SEC = 100;
+   	const int FRAME_RATE_PER_SEC = 10;
 
    	cout << endl << back_st << normal;
 
@@ -671,7 +671,6 @@ void print_world() {
 	cout << endl << b_normal << default_st << "Robot: " << (robot.isOn ? "ON, " : "OFF, ") << robot.beeperCount << " beepers" << endl;
 
 	usleep(1000000/FRAME_RATE_PER_SEC);
-	*/
 }
 
 void newPosition(AST* root) {
