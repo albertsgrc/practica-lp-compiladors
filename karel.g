@@ -450,7 +450,7 @@ void Robot::putBeeper() {
 
 bool Robot::foundBeeper() {
 	// TODO: Ha de retornar cert si el robot està apagat?
-	return isOn and pose.position.hasBeeper();
+	return pose.position.hasBeeper();
 }
 
 // # Evaluation
@@ -520,7 +520,6 @@ void newPosition(AST* root) {
 	
 	world.initialize(child(worldNode, 0)); 
 	robot.initialize(child(robotNode, 0));
-
 	evaluateDefinitions(child(definitionsList, 0));
 	evaluateInstructions(child(instructionsList, 0));
 
