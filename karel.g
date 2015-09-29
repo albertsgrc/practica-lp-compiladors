@@ -323,9 +323,9 @@ inline Orientation opposite(Orientation o) {
 // # Position
 
 inline bool Position::insideWorld() const {
-	return 0 <= this->x and this->x <= world.sizeX 
+	return 0 < this->x and this->x < world.sizeX 
 			and 
-		   0 <= this->y and this->y <= world.sizeY;
+		   0 < this->y and this->y < world.sizeY;
 }
 
 inline bool Position::hasBeeper() const {
