@@ -30,13 +30,6 @@ void zzcr_attr(Attrib *attr, int type, char *text);
 AST* createASTnode(Attrib* attr,int ttype, char *textt);
 >>
 
-
-
-
-
-
-
-
 /* ######### */
 /* # C O D E */
 /* ######### */
@@ -47,12 +40,10 @@ AST* createASTnode(Attrib* attr,int ttype, char *textt);
 #include <unordered_set>
 #include <unordered_map>
 
-// DEBUG
-void print_world();
-#include <array>
 #include <cassert>
 #include <unistd.h>
-#define ASR_ERROR(txt) cerr << txt << endl; assert(false)
+
+#define ERROR(string) cerr << string << endl; assert(false);
 
 /* ################################################# */
 /* ## T O K E N    A N D    A S T    H A N D L I N G */
@@ -80,7 +71,6 @@ AST* createASTnode(Attrib* attr, int type, char* text) {
 
 	return as;
 }
-
 
 // Create a new "list" AST node with one element
 AST* createASTlist(AST *child) {
@@ -124,40 +114,29 @@ void ASTPrintIndent(AST* a, string s) {
 		i = i->right;
 }   }
 
-
 // Print AST
 void ASTPrint(AST* a) {
 	while (a != NULL) {
 		cout << " ";
 		ASTPrintIndent(a, "");
 		a = a->right;
-	}
+}	}
+
+inline AST* advance(AST*& a) {
+	return a = a->right;
 }
-
-
-
 
 /* ####################################### */
 /* ## A S T    I N T E R P R E T A T I O N */
 /* ####################################### */
 
-/* ############################## */
-/* ### Data structures definition */
-/* ############################## */
+/* ################### */
+/* ### Data structures */
+/* ################### */
 
 
 // # Orientation
 enum class Orientation { UP, RIGHT, DOWN, LEFT };
-
-ostream& operator<<(ostream& s, const Orientation& orientation) {
-	switch (orientation) {
-		case Orientation::UP: s << "up"; break;
-		case Orientation::RIGHT: s << "right"; break;
-		case Orientation::DOWN: s << "down"; break;
-		case Orientation::LEFT: s << "left"; break;
-	}
-	return s;
-}
 
 // # Position
 struct Position {
@@ -175,18 +154,12 @@ struct Position {
 		return other.x == x and other.y == y;
 	}
 
-	friend ostream& operator<<(ostream& s, const Position& position) {
-		s << position.x << ' ' << position.y;
-		return s;
-	}
-
 	inline Position& operator+=(const Orientation& orientation) {
 		switch (orientation) {
 			case Orientation::UP: --y; break;
 			case Orientation::RIGHT: ++x; break;
 			case Orientation::DOWN: ++y; break;
 			case Orientation::LEFT: --x; break;
-			default: ASR_ERROR("Invalid orientation"); // DEBUG
 		}
 
 		return *this;
@@ -195,6 +168,11 @@ struct Position {
 	inline Position operator+(const Orientation& orientation) const {
 		Position res(*this);
 		return res += orientation; 
+	}
+
+	friend ostream& operator<<(ostream& s, const Position& position) {
+		s << position.x << ' ' << position.y;
+		return s;
 	}
 };
 
@@ -219,15 +197,11 @@ struct Pose {
 	bool operator==(const Pose& other) const {
 		return other.position == position and other.orientation == orientation;
 	}
-
-	friend ostream& operator<<(ostream& s, const Pose& pose) {
-		s << pose.position << ' ' << pose.orientation;
-		return s;
-	}
 };
+
 // Hashing function definitions for Position and Pose
 template <class T> inline void hash_combine(size_t& seed, const T& v) {
-	hash<T> hasher; seed ^= hasher(v) + 0x9e3779b9 + (seed/*<<6*/*64) + (seed/*>>2*//4); 
+	hash<T> hasher; seed ^= hasher(v) + 0x9e3779b9 + (seed*64) + (seed/4); 
 }
 namespace std {
 	template <> struct hash<Position> {
@@ -273,7 +247,10 @@ struct Robot {
 
 	void initialize(AST*);
 	void turnLeft();
-	void tryToMove();
+	void move();
+	void pickBeeper();
+	void putBeeper();
+	bool foundBeeper();
 };
 
 // # Function definitions
@@ -284,9 +261,9 @@ class FunctionDefinitions { // Implements finding function definitions in O(1) a
 	public:
 		inline void add(AST* definition) {
 			// TODO: Què s'ha de fer si ja està definida?
-			string id = definition->down->text;
-			AST* insList = definition->down->right;
-			map[id] = insList;
+			string id = definition->text;
+			AST* insList = definition->right;
+			map[id] = child(insList, 0);
 		}
 
 		inline AST* get(const string& id) const {
@@ -310,82 +287,100 @@ Robot robot;
 
 FunctionDefinitions functionDefinitions;
 
-
 /* ########### */
 /* ### Methods */
 /* ########### */
 
-// Useful to use strings in a switch statement
-constexpr unsigned int si(const char* str, int h = 0) {
-  return !str[h] ? 5381 : (si(str, h + 1)*33) ^ str[h];
-}
-
-inline Orientation sToOrientation(const string& s) {
-	switch (si(s.c_str())) {
-		case si("up"): return Orientation::UP;
-		case si("right"): return Orientation::RIGHT;
-		case si("down"): return Orientation::DOWN;
-		case si("left"): return Orientation::LEFT;
-		default: ASR_ERROR("Invalid orientation"); // DEBUG
-	}
-}
+// # Utils
 
 // To parse strings to integers
 inline int sti(const string& s) { 
 	return atoi(s.c_str());
 }
 
-inline AST* advance(AST*& a) {
-	return a = a->right;
+// # Orientation
+
+inline Orientation sToOrientation(const string& s) {
+	switch (s[0]) {
+		case 'u': return Orientation::UP;
+		case 'r': return Orientation::RIGHT;
+		case 'd': return Orientation::DOWN;
+		case 'l': return Orientation::LEFT;
+		default: ERROR("Invalid orientation string");
+	}
 }
 
-bool Position::insideWorld() const {
-	return (0 <= this->x and this->x <= world.sizeX) 
-			and 
-		   (0 <= this->y and this->y <= world.sizeY);
-}
-
-bool Position::hasBeeper() const {
-	auto it = world.beepers.find(*this);
-	return it != world.beepers.end() and it->second > 0; 
-}
-
-Orientation opposite(Orientation o) {
+inline Orientation opposite(Orientation o) {
 	switch(o) {
 		case Orientation::LEFT: return Orientation::RIGHT;
 		case Orientation::RIGHT: return Orientation::LEFT;
 		case Orientation::UP: return Orientation::DOWN;
 		case Orientation::DOWN: return Orientation::UP;
+		default: ERROR("Orientation case missing");
 	}
 }
 
-Pose equivalentWall(const Pose& wall) {
+// # Position
+
+inline bool Position::insideWorld() const {
+	return 0 <= this->x and this->x <= world.sizeX 
+			and 
+		   0 <= this->y and this->y <= world.sizeY;
+}
+
+inline bool Position::hasBeeper() const {
+	auto it = world.beepers.find(*this);
+	return it != world.beepers.end() and it->second > 0; 
+}
+
+// # Pose
+
+inline Pose equivalentWall(const Pose& wall) {
 	return Pose(wall.position + wall.orientation, opposite(wall.orientation));
 }
 
-// PRE: this->position.xnsideWorld() is true
-bool Pose::isClear() const {
-	return world.walls.find(*this) == world.walls.end() and world.walls.find(equivalentWall(*this)) == world.walls.end();
+// TODO: Does this need to check that the position being checked is inside the world?
+// TODO: Is this supposed to check both equivalent walls?
+inline bool Pose::isClear() const {
+	return world.walls.find(*this) == world.walls.end() and 
+	       world.walls.find(equivalentWall(*this)) == world.walls.end();
 }
+
+// # World
 
 void World::initialize(AST* worldNode) {
-	// TODO: Quin node es quina dimensio?
-	this->sizeX = sti(worldNode->down->kind);
-	this->sizeY = sti(worldNode->down->right->kind);
+	this->sizeX = sti(worldNode->kind);
+	this->sizeY = sti(worldNode->right->kind);
 }
 
-void Robot::initialize(AST* robotNode) {
-	AST* iNode = robotNode->down;
-	AST* jNode = iNode->right;
-	AST* beeperCountNode = jNode->right;
-	AST* orientationNode = beeperCountNode->right;
+void World::addBeeper(AST* beeperNode) {
+	// TODO: Què s'ha de fer si ja hi és?
 
-	this->pose.position.x = sti(iNode->kind);
-	this->pose.position.y = sti(jNode->kind);
-	this->beeperCount = sti(beeperCountNode->kind);
-	this->pose.orientation = sToOrientation(orientationNode->kind);
-	
-	this->isOn = true;
+	AST* xNode = beeperNode;
+	AST* yNode = xNode->right;
+	AST* amountNode = yNode->right;
+
+	Position position(sti(xNode->kind), sti(yNode->kind));
+	int amount = sti(amountNode->kind);
+
+	beepers[position] = amount;
+}
+
+void World::addWalls(AST* wallsNode) {
+	// TODO: Què s'ha de fer si ja hi són?
+
+	while (wallsNode != NULL) {
+		AST* xNode = wallsNode;
+		AST* yNode = advance(wallsNode);
+		AST* orientationNode = advance(wallsNode);
+
+		Position position(sti(xNode->kind), sti(yNode->kind));
+		Pose pose(position, sToOrientation(orientationNode->kind));
+
+		this->walls.insert(pose);
+
+		advance(wallsNode);
+	}
 }
 
 void World::putBeeper(const Position& position) {
@@ -396,6 +391,8 @@ void World::putBeeper(const Position& position) {
 }
 
 bool World::pickBeeper(const Position& position) {
+	// TODO: Què s'ha de fer si no hi ha beeper?
+
 	auto it = this->beepers.find(position);
 
 	bool picked = it != this->beepers.end() and it->second > 0;
@@ -404,45 +401,20 @@ bool World::pickBeeper(const Position& position) {
 	return picked;
 }
 
-void World::addBeeper(AST* beeperNode) {
-	// TODO: Què s'ha de fer si ja hi és?
+// # Robot
 
-	AST* iNode = beeperNode->down;
-	AST* jNode = iNode->right;
-	AST* amountNode = jNode->right;
+void Robot::initialize(AST* robotNode) {
+	AST* xNode = robotNode;
+	AST* yNode = xNode->right;
+	AST* beeperCountNode = yNode->right;
+	AST* orientationNode = beeperCountNode->right;
 
-	Position position(sti(iNode->kind), sti(jNode->kind));
-	int amount = sti(amountNode->kind);
-
-	beepers[position] = amount;
-}
-
-void World::addWalls(AST* wallsNode) {
-	// TODO: Què s'ha de fer si ja hi són?
-
-	wallsNode = wallsNode->down;
-
-	while (wallsNode != NULL) {
-		AST* iNode = wallsNode;
-		AST* jNode = advance(wallsNode);
-		AST* orientationNode = advance(wallsNode);
-
-		Position position(sti(iNode->kind), sti(jNode->kind));
-		Pose pose(position, sToOrientation(orientationNode->kind));
-
-		this->walls.insert(pose);
-
-		advance(wallsNode);
-	}
-}
-
-Orientation randOrientation() {
-	switch(rand()%4) {
-		case 0: return Orientation::LEFT;
-		case 1: return Orientation::RIGHT;
-		case 2: return Orientation::UP;
-		case 3: return Orientation::DOWN;
-	}
+	this->pose.position.x = sti(xNode->kind);
+	this->pose.position.y = sti(yNode->kind);
+	this->beeperCount = sti(beeperCountNode->kind);
+	this->pose.orientation = sToOrientation(orientationNode->kind);
+	
+	this->isOn = true;
 }
 
 void Robot::turnLeft() {
@@ -453,11 +425,10 @@ void Robot::turnLeft() {
 		case Orientation::RIGHT: this->pose.orientation = Orientation::UP; break;
 		case Orientation::DOWN: this->pose.orientation = Orientation::RIGHT; break;
 		case Orientation::LEFT: this->pose.orientation = Orientation::DOWN; break;
-		default: ASR_ERROR("Invalid orientation"); // DEBUG
 	}
 }
 
-void Robot::tryToMove() {
+void Robot::move() {
 	if (not isOn) return;
 
 	Position destiny = this->pose.nextPosition();
@@ -465,229 +436,223 @@ void Robot::tryToMove() {
 	if (destiny.insideWorld() and this->pose.isClear()) this->pose.advance();
 }
 
+void Robot::pickBeeper() {
+	if (not isOn) return;
+
+	if (world.pickBeeper(pose.position)) ++beeperCount;
+	else cerr << "Cannot pick beeper because there's no beeper in the current robot's position!" << endl;
+	// TODO: Què passa si a la posició no n'hi ha?
+}
+
+void Robot::putBeeper() {
+	if (not isOn) return;
+
+	if (beeperCount > 0) {
+		--beeperCount;
+		world.putBeeper(pose.position);
+	}
+	else cerr << "Cannot put beeper because robot has no beepers left!" << endl; 
+	// TODO: Què passa si no en té?
+}
+
+bool Robot::foundBeeper() {
+	// TODO: Ha de retornar cert si el robot està apagat?
+	return pose.position.hasBeeper();
+}
+
+// # Debugging
+
+class Debugger {
+	private:
+		const char WALL = '#';
+		const char NOTHING = ' ';
+
+		const char ROBOT_LEFT = '<';
+		const char ROBOT_RIGHT = '>';
+		const char ROBOT_UP = '^';
+		const char ROBOT_DOWN = 'V';
+
+		const char wallStyle[8] = { 0x1b, '[', '1', ';', '3', '7', 'm', 0 };
+		const char robotStyle[8] = { 0x1b, '[', '1', ';', '3', '6', 'm', 0 };
+		const char sensorStyle[8] = { 0x1b, '[', '1', ';', '3', '5', 'm', 0 };
+		const char backgroundStyle[8] = { 0x1b, '[', '0', ';', '4', '0', 'm', 0 };
+		const char backgroundNormal[8] = { 0x1b, '[', '1', ';', '4', '9', 'm', 0 };
+		const char normalStyle[8] = { 0x1b, '[', '1', ';', '3', '9', 'm', 0 };
+		const char defaultCellStyle[8] = { 0x1b, '[', '1', ';', '3', '0', 'm', 0 };
+
+		const string cellFormat[3] = {
+			"WTTTO",
+			"LUXSR",
+			"YBBBV"
+   		};
+
+   		const int N_ROWS = 2;
+		const int N_COLS = 4;
+
+		const int FRAME_RATE_PER_SEC = 8;
+
+		void printWithStyle(bool condition, char c, const char style[]) {
+			if (condition) cout << style << c << defaultCellStyle;
+			else cout << NOTHING;
+		}
+
+		void printWall(bool condition) {
+			if (condition) cout << wallStyle << WALL << defaultCellStyle;
+			else cout << WALL;
+		}
+
+		void printIfNotRobotAndSensors(bool thereIsRobot, int sensors) {
+			if (thereIsRobot != sensors > 0) {
+	   			if (thereIsRobot) cout << robotStyle << robotChar() << defaultCellStyle;
+	   			else cout << sensorStyle << sensors%10 << defaultCellStyle;
+	   		}
+	   		else cout << NOTHING;
+		}
+
+		char robotChar() {
+			switch (robot.pose.orientation) {
+				case Orientation::LEFT: return ROBOT_LEFT;
+				case Orientation::RIGHT: return ROBOT_RIGHT;
+				case Orientation::UP: return ROBOT_UP;
+				case Orientation::DOWN: return ROBOT_DOWN;
+			}
+		}
+
+		void printCellElem(int row, int col, int x, int y, bool fuckingCorner = false) {
+			Position position(x, y);
+
+		   	bool leftWall = not Pose(position, Orientation::LEFT).isClear();
+		   	bool rightWall = not Pose(position, Orientation::RIGHT).isClear();
+		   	bool upWall = not Pose(position, Orientation::UP).isClear();
+		   	bool downWall = not Pose(position, Orientation::DOWN).isClear();
+
+		   	bool thereIsRobot = robot.pose.position == position;
+
+		   	bool isFuckedUpCorner = fuckingCorner and not Pose(position + Orientation::UP, Orientation::LEFT).isClear(); 
+
+		   	auto it = world.beepers.find(position);
+		   	int sensors = it == world.beepers.end() ? 0 : it->second;
+
+		   	switch(cellFormat[row][col]) {
+		   		case 'W': printWall(leftWall or upWall or isFuckedUpCorner); break;
+		   		case 'L': printWall(leftWall); break;
+		   		case 'Y': printWall(leftWall or downWall); break;
+		   		case 'B': printWall(downWall); break;;
+		   		case 'T': printWall(upWall); break;
+		   		case 'O': printWall(upWall or rightWall or isFuckedUpCorner); break;
+		   		case 'R': printWall(rightWall); break;
+		   		case 'V': printWall(downWall or rightWall); break;
+		   		case 'X': printIfNotRobotAndSensors(thereIsRobot, sensors); break;
+		   		case 'U': printWithStyle(thereIsRobot and sensors, robotChar(), robotStyle); break;
+		   		case 'S': printWithStyle(thereIsRobot and sensors, char(sensors%10 + '0'), sensorStyle); break;
+		   		default: ERROR("Invalid cell format character");
+		   	}
+		}
+
+	public:
+
+		void printWorld() {
+		   	cout << endl << backgroundStyle << defaultCellStyle;
+
+			for (int y = 0; y < world.sizeY; ++y) {
+				for (int row = 0; row < N_ROWS; ++row) {
+					for (int x = 0; x < world.sizeX; ++x) {
+						for (int col = 0; col < N_COLS; ++col) printCellElem(row, col, x, y, row == 0 and col == 0);
+					}
+					printCellElem(row, N_COLS, world.sizeX, y);
+					cout << endl;
+				}
+			}
+
+			for (int i = 0; i < N_COLS*world.sizeX + 1; ++i) printCellElem(N_ROWS, i%N_COLS, i/N_COLS, world.sizeY);
+
+			cout << endl << backgroundNormal << normalStyle << "Robot: " << (robot.isOn ? "ON, " : "OFF, ") << robot.beeperCount << " beepers" << endl;
+
+			usleep(1000000/FRAME_RATE_PER_SEC);
+		}
+};
+
+Debugger debugger;
+
+// # Evaluation
+
 bool evaluateCondition(AST* a) {
 	AST* fc;
 
-	switch (si(a->kind.c_str())) {
-		case si("foundBeeper"):
-			return robot.pose.position.hasBeeper();
-		case si("isClear"):
-			return robot.pose.isClear();
-		case si("anyBeepersInBag"):
-			return robot.beeperCount > 0;
+	if (a->kind == "foundBeeper") return robot.foundBeeper();
+	else if (a->kind == "isClear") return robot.pose.isClear();
+	else if (a->kind == "anyBeepersInBag") return robot.beeperCount > 0;
+	else if (a->kind == "not") return not evaluateCondition(child(a, 0));
+	else if (a->kind == "and") {
+		fc = child(a, 0); 
+		return evaluateCondition(fc) and evaluateCondition(fc->right);
+	}
+	else if (a->kind == "or") {
+		fc = child(a, 0);
+		return evaluateCondition(fc) or evaluateCondition(fc->right);	
+	}
+	else ERROR("Invalid condition");
+}
 
-		case si("not"): fc = a->down;
-			return not evaluateCondition(fc);
-		case si("and"): fc = a->down;
-			return evaluateCondition(fc) and evaluateCondition(fc->right);
-		case si("or"): fc = a->down;
-			return evaluateCondition(fc) or evaluateCondition(fc->right);
-		default: ASR_ERROR("Invalid condition"); // DEBUG
+void evaluateDefinitions(AST* def) {
+	while (def != NULL) {
+		if (def->kind == "walls") world.addWalls(child(def, 0));
+		else if (def->kind == "beepers") world.addBeeper(child(def, 0));
+		else if (def->kind == "define") functionDefinitions.add(child(def, 0));
+		else ERROR("Invalid definition");
+
+		advance(def);
 	}
 }
 
-void evaluateDefinitions(AST* list) {
-	AST* currDefinition = list->down;
+void evaluateInstructions(AST*);
 
-	while (currDefinition != NULL) {
-		switch (si(currDefinition->kind.c_str())) {
-			case si("walls"):  world.addWalls(currDefinition); break;
-			case si("beepers"): world.addBeeper(currDefinition); break;
-			case si("define"): functionDefinitions.add(currDefinition); break;
-			default: ASR_ERROR("Invalid definition"); // DEBUG
-		}
+void evaluateIterate(AST* iterate) {
+	int times = sti(iterate->kind);
+	AST* insList = iterate->right;
 
-		advance(currDefinition);
+	while (times--) evaluateInstructions(child(insList, 0));
+} 
+
+void evaluateIf(AST* _if) {
+	if (evaluateCondition(_if)) evaluateInstructions(child(_if->right, 0));
+}
+
+void evaluateInstructions(AST* instr) {
+	debugger.printWorld();
+
+	while (instr != NULL) {
+		if (instr->kind == "iterate") evaluateIterate(child(instr, 0));
+		else if (instr->kind == "if") evaluateIf(child(instr, 0));
+		else if (instr->kind == "turnleft") robot.turnLeft();
+		else if (instr->kind == "move") robot.move();
+		else if (instr->kind == "putbeeper") robot.putBeeper();
+		else if (instr->kind == "pickbeeper") robot.pickBeeper();
+		else if (instr->kind == "id") evaluateInstructions(functionDefinitions.get(instr->text)); 
+		else if (instr->kind == "turnoff") robot.turnOff();
+		else ERROR("Invalid instruction");
+
+		advance(instr);
 	}
 }
 
-void evaluateInstructions(AST* list) {
-	AST* currInstruction = list->down;
-
-	while (currInstruction != NULL) {
-		int times;
-
-		switch(si(currInstruction->kind.c_str())) {
-			case si("iterate"):
-				times = sti(currInstruction->down->kind);
-				while (times--) evaluateInstructions(currInstruction->down->right);
-				break;
-			case si("if"):
-				if (evaluateCondition(currInstruction->down)) 
-					evaluateInstructions(currInstruction->down->right);
-				break;
-			case si("turnleft"): 
-				robot.turnLeft(); 
-				print_world(); // DEBUG
-				break;
-			case si("move"): 
-				robot.tryToMove(); 
-				print_world(); // DEBUG
-			break;
-			case si("putbeeper"):
-				if (not robot.isOn) break;
-
-				if (robot.beeperCount > 0) {
-					--robot.beeperCount;
-					world.putBeeper(robot.pose.position);
-				}
-				else cerr << "Cannot put beeper because robot has no beepers left!" << endl; 
-				// TODO: Què passa si no en té?
-
-				print_world(); // DEBUG
-				break;
-			case si("pickbeeper"):
-				if (not robot.isOn) break;
-
-				if (world.pickBeeper(robot.pose.position)) ++robot.beeperCount;
-				else cerr << "Cannot pick beeper because there's no beeper in the current robot's position!" << endl;
-				// TODO: Què passa si a la posició no n'hi ha?
-				print_world(); // DEBUG
-				break;
-			case si("id"): evaluateInstructions(functionDefinitions.get(currInstruction->text)); break;
-			case si("turnoff"): 
-				robot.turnOff(); 
-				print_world(); // DEBUG
-				break;
-			default: ASR_ERROR("Invalid instruction"); // DEBUG
-		}
-
-		advance(currInstruction);
-	}
-}
-
-
-// DEBUG
-#define PNT(cnd, chr, style) if (cnd) cout << style << chr << normal; else cout << ' ';
-#define PNTW(cnd) if (cnd) cout << w_st << WALL << normal; else cout << WALL;
-#define IN(val, cont) cont.find((val)) != cont.end()
-
-char robot_char() {
-	switch (robot.pose.orientation) {
-		case Orientation::LEFT: return '<';
-		case Orientation::RIGHT: return '>';
-		case Orientation::UP: return '^';
-		case Orientation::DOWN: return 'V';
-	}
-}
-
-
-char r_st[] = { 0x1b, '[', '1', ';', '3', '6', 'm', 0 };
-char s_st[] = { 0x1b, '[', '1', ';', '3', '5', 'm', 0 };
-char w_st[] = { 0x1b, '[', '1', ';', '3', '7', 'm', 0 };
-char back_st[] = { 0x1b, '[', '0', ';', '4', '0', 'm', 0 };
-char b_normal[] = { 0x1b, '[', '1', ';', '4', '9', 'm', 0 };
-char normal[] = { 0x1b, '[', '1', ';', '3', '0', 'm', 0 };
-char default_st[] = { 0x1b, '[', '1', ';', '3', '9', 'm', 0 };
-
-void print_cell_elem(int row, int col, int x, int y, bool fuckingCorner = false) {
-	const string cellFormat[] = {
-		"WTTTO",
-		"LUXSR",
-		"YBBBV"
-   	};
-
-   	Position position(x, y);
-
-   	bool leftWall = not Pose(position, sToOrientation("left")).isClear();
-   	bool rightWall = not Pose(position, sToOrientation("right")).isClear();
-   	bool upWall = not Pose(position, sToOrientation("up")).isClear();
-   	bool downWall = not Pose(position, sToOrientation("down")).isClear();
-   	bool thereIsRobot = robot.pose.position == position;
-
-   	bool isFuckedUpCorner = fuckingCorner and not Pose(position + Orientation::UP, Orientation::LEFT).isClear(); 
-
-   	auto it = world.beepers.find(position);
-   	int sensors = it == world.beepers.end() ? 0 : it->second;
-
-    // W = Left or Top
-    // L = Left
-    // Y = Left or Bottom
-    // B = Bottom
-    // T = Top
-    // O = Top or Right
-    // R = Right
-    // V = Bottom or Right
-    // X = Robot or Sensors when both do not appear
-    // U = Robot
-    // S = Sensors count
-    // # = Cell delimiter
-
-    //XXXXXXXXXXXXX
-    //X> 9X   X   X
-    //XXXXXXXXXXXXX
-    //X   X   X   X
-    //XXXXXXXXXXXXX
-    //X   X   X   X
-    //XXXXXXXXXXXXX
-
-    const char WALL = '#';
-
-   	switch(cellFormat[row][col]) {
-   		case 'W': PNTW(leftWall or upWall or isFuckedUpCorner); break;
-   		case 'L': PNTW(leftWall); break;
-   		case 'Y': PNTW(leftWall or downWall); break;
-   		case 'B': PNTW(downWall); break;;
-   		case 'T': PNTW(upWall); break;
-   		case 'O': PNTW(upWall or rightWall or isFuckedUpCorner); break;
-   		case 'R': PNTW(rightWall); break;
-   		case 'V': PNTW(downWall or rightWall); break;
-   		case 'X': 
-   			if (thereIsRobot != sensors > 0) {
-   				if (thereIsRobot) cout << r_st << robot_char() << normal;
-   				else cout << s_st << sensors%10 << normal;
-   			}
-   			else cout << ' ';
-   			break;
-   		break;
-   		case 'U': PNT(thereIsRobot and sensors, robot_char(), r_st); break;
-   		case 'S': PNT(thereIsRobot and sensors, char(sensors%10 + '0'), s_st); break;
-   		default: ASR_ERROR("Invalid char");
-   	}
-}
-
-// DEBUG
-void print_world() {
-   	const int N_ROWS = 2;
-   	const int N_COLS = 4;
-
-   	const int FRAME_RATE_PER_SEC = 10;
-
-   	cout << endl << back_st << normal;
-
-	for (int y = 0; y < world.sizeY; ++y) {
-		for (int row = 0; row < N_ROWS; ++row) {
-			for (int x = 0; x < world.sizeX; ++x) {
-				for (int col = 0; col < N_COLS; ++col) print_cell_elem(row, col, x, y, row == 0 and col == 0);
-			}
-			print_cell_elem(row, N_COLS, world.sizeX, y);
-			cout << endl;
-		}
-	}
-
-	for (int i = 0; i < N_COLS*world.sizeX + 1; ++i) print_cell_elem(N_ROWS, i%N_COLS, i/N_COLS, world.sizeY);
-
-	cout << endl << b_normal << default_st << "Robot: " << (robot.isOn ? "ON, " : "OFF, ") << robot.beeperCount << " beepers" << endl;
-
-	usleep(1000000/FRAME_RATE_PER_SEC);
-}
+// # Main methods
 
 void newPosition(AST* root) {
-	AST* worldNode = root->down;
+	AST* worldNode = child(root, 0);
 	AST* robotNode = worldNode->right;
 	AST* definitionsList = robotNode->right;
 	AST* instructionsList = definitionsList->right;
 	
-	world.initialize(worldNode); 
-	robot.initialize(robotNode);
+	world.initialize(child(worldNode, 0)); 
+	robot.initialize(child(robotNode, 0));
 
-	evaluateDefinitions(definitionsList);
+	evaluateDefinitions(child(definitionsList, 0));
+	
+	debugger.printWorld();
 
-	//print_world();
+	evaluateInstructions(child(instructionsList, 0));
 
-	evaluateInstructions(instructionsList);
-
-	//print_world();
 	cout << robot.pose.position << endl;
 }
 
@@ -701,10 +666,6 @@ int main() {
 	newPosition(root); 
 }
 >>
-
-
-
-
 
 /* ############################################################# */
 /* # L E X I C O N   A N D   S Y N T A X   D E F I N I T I O N S */
