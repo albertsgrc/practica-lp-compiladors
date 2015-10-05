@@ -270,7 +270,7 @@ class FunctionDefinitions { // Implements finding function definitions in O(1) a
 			auto it = map.find(id);
 
 			if (it == map.end()) {
-				cerr << "!!DEFINITION NOT FOUND: " << id << " " << endl;
+				cerr << "DEFINITION NOT FOUND: " << id << " " << endl;
 				return NULL;
 			}
 			else return it->second;
@@ -537,7 +537,7 @@ class Debugger {
 		   		case 'W': printWall(leftWall or upWall or isFuckedUpCorner); break;
 		   		case 'L': printWall(leftWall); break;
 		   		case 'Y': printWall(leftWall or downWall); break;
-		   		case 'B': printWall(downWall); break;;
+		   		case 'B': printWall(downWall); break;
 		   		case 'T': printWall(upWall); break;
 		   		case 'O': printWall(upWall or rightWall or isFuckedUpCorner); break;
 		   		case 'R': printWall(rightWall); break;
