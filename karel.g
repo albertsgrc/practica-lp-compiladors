@@ -579,11 +579,6 @@ class Debugger {
 
 Debugger debugger;
 
-bool Robot::foundBeeper() {
-	// TODO: Ha de retornar cert si el robot està apagat?
-	return pose.position.hasBeeper();
-}
-
 // # Evaluation
 
 bool evaluateCondition(AST* a) {
@@ -620,16 +615,6 @@ void evaluateInstructions(AST*);
 void evaluateIterate(AST* iterate) {
 	int times = sti(iterate->kind);
 	AST* insList = iterate->right;
-	while (times--) evaluateInstructions(child(insList, 0));
-} 
-
-void evaluateIf(AST* _if) {
-	if (evaluateCondition(_if)) evaluateInstructions(child(_if->right, 0));
-}
-
-void evaluateInstructions(AST* instr) {
-	debugger.printWorld();
-
 	while (times--) evaluateInstructions(child(insList, 0));
 } 
 
