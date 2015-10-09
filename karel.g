@@ -104,13 +104,15 @@ void ASTPrintIndent(AST* a, string s) {
 	AST* i = a->down;
 	while (i != NULL and i->right != NULL) {
 		cout << s + "  \\__";
-		ASTPrintIndent(i, s + "  |" + string(i->kind.size() + i->text.size(), ' '));
+		ASTPrintIndent(i, s + "  |" + string(i->kind.size() + 
+                                             i->text.size(), ' '));
 		i = i->right;
 	}
 
 	if (i != NULL) {
 		cout << s + "  \\__";
-		ASTPrintIndent(i, s + "   " + string(i->kind.size() + i->text.size(), ' '));
+		ASTPrintIndent(i, s + "   " + string(i->kind.size() +
+                                             i->text.size(), ' '));
 		i = i->right;
 }   }
 
@@ -142,7 +144,6 @@ enum class Orientation { UP, RIGHT, DOWN, LEFT };
 struct Position {
 	int x, y;
 
-	// TODO: S'ha de comprovar que les posicions siguin correctes?
 	Position() {}
 	Position(int x, int y) : x(x), y(y) {} 
 	Position(const Position& p) : x(p.x), y(p.y) {}
@@ -195,7 +196,8 @@ struct Pose {
 	}
 
 	bool operator==(const Pose& other) const {
-		return other.position == position and other.orientation == orientation;
+		return other.position == position and 
+               other.orientation == orientation;
 	}
 };
 
@@ -254,13 +256,13 @@ struct Robot {
 };
 
 // # Function definitions
-class FunctionDefinitions { // Implements finding function definitions in O(1) average
+// Implements finding function definitions in O(1) average
+class FunctionDefinitions {
 	private:
 		unordered_map<string, AST*> map;
 
 	public:
 		inline void add(AST* definition) {
-			// TODO: Què s'ha de fer si ja està definida?
 			string id = definition->text;
 			AST* insList = definition->right;
 			map[id] = child(insList, 0);
@@ -270,7 +272,7 @@ class FunctionDefinitions { // Implements finding function definitions in O(1) a
 			auto it = map.find(id);
 
 			if (it == map.end()) {
-				cerr << "DEFINITION NOT FOUND: " << id << " " << endl;
+				cerr << "Definition not found: " << id << " " << endl;
 				return NULL;
 			}
 			else return it->second;
@@ -339,8 +341,6 @@ inline Pose equivalentWall(const Pose& wall) {
 	return Pose(wall.position + wall.orientation, opposite(wall.orientation));
 }
 
-// TODO: Does this need to check that the position being checked is inside the world?
-// TODO: Is this supposed to check both equivalent walls?
 inline bool Pose::isClear() const {
 	return world.walls.find(*this) == world.walls.end() and 
 	       world.walls.find(equivalentWall(*this)) == world.walls.end();
@@ -354,8 +354,6 @@ void World::initialize(AST* worldNode) {
 }
 
 void World::addBeeper(AST* beeperNode) {
-	// TODO: Què s'ha de fer si ja hi és?
-
 	AST* xNode = beeperNode;
 	AST* yNode = xNode->right;
 	AST* amountNode = yNode->right;
@@ -367,8 +365,6 @@ void World::addBeeper(AST* beeperNode) {
 }
 
 void World::addWalls(AST* wallsNode) {
-	// TODO: Què s'ha de fer si ja hi són?
-
 	while (wallsNode != NULL) {
 		AST* xNode = wallsNode;
 		AST* yNode = advance(wallsNode);
@@ -386,13 +382,12 @@ void World::addWalls(AST* wallsNode) {
 void World::putBeeper(const Position& position) {
 	auto it = this->beepers.find(position);
 
-	if (it == this->beepers.end()) this->beepers.insert(it, make_pair(position, 1));
+	if (it == this->beepers.end())
+        this->beepers.insert(it, make_pair(position, 1));
 	else ++it->second;
 }
 
 bool World::pickBeeper(const Position& position) {
-	// TODO: Què s'ha de fer si no hi ha beeper?
-
 	auto it = this->beepers.find(position);
 
 	bool picked = it != this->beepers.end() and it->second > 0;
@@ -420,11 +415,11 @@ void Robot::initialize(AST* robotNode) {
 void Robot::turnLeft() {
 	if (not isOn) return;
 
-	switch (this->pose.orientation) {
-		case Orientation::UP: this->pose.orientation = Orientation::LEFT; break;
-		case Orientation::RIGHT: this->pose.orientation = Orientation::UP; break;
-		case Orientation::DOWN: this->pose.orientation = Orientation::RIGHT; break;
-		case Orientation::LEFT: this->pose.orientation = Orientation::DOWN; break;
+	switch (pose.orientation) {
+		case Orientation::UP: pose.orientation = Orientation::LEFT; break;
+		case Orientation::RIGHT: pose.orientation = Orientation::UP; break;
+		case Orientation::DOWN: pose.orientation = Orientation::RIGHT; break;
+		case Orientation::LEFT: pose.orientation = Orientation::DOWN; break;
 	}
 }
 
@@ -440,8 +435,8 @@ void Robot::pickBeeper() {
 	if (not isOn) return;
 
 	if (world.pickBeeper(pose.position)) ++beeperCount;
-	else cerr << "Cannot pick beeper because there's no beeper in the current robot's position!" << endl;
-	// TODO: Què passa si a la posició no n'hi ha?
+	else cerr << "Cannot pick beeper because there's no beeper in the current"
+              << " robot's position!" << endl;
 }
 
 void Robot::putBeeper() {
@@ -452,11 +447,9 @@ void Robot::putBeeper() {
 		world.putBeeper(pose.position);
 	}
 	else cerr << "Cannot put beeper because robot has no beepers left!" << endl; 
-	// TODO: Què passa si no en té?
 }
 
 bool Robot::foundBeeper() {
-	// TODO: Ha de retornar cert si el robot està apagat?
 	return pose.position.hasBeeper();
 }
 
@@ -464,112 +457,123 @@ bool Robot::foundBeeper() {
 
 class Debugger {
 	private:
-		const char WALL = '#';
-		const char NOTHING = ' ';
+    
+    const char WALL = '#';
+    const char NOTHING = ' ';
 
-		const char ROBOT_LEFT = '<';
-		const char ROBOT_RIGHT = '>';
-		const char ROBOT_UP = '^';
-		const char ROBOT_DOWN = 'V';
+    const char ROBOT_LEFT = '<';
+    const char ROBOT_RIGHT = '>';
+    const char ROBOT_UP = '^';
+    const char ROBOT_DOWN = 'V';
 
-		const char wallStyle[8] = { 0x1b, '[', '1', ';', '3', '7', 'm', 0 };
-		const char robotStyle[8] = { 0x1b, '[', '1', ';', '3', '6', 'm', 0 };
-		const char sensorStyle[8] = { 0x1b, '[', '1', ';', '3', '5', 'm', 0 };
-		const char backgroundStyle[8] = { 0x1b, '[', '0', ';', '4', '0', 'm', 0 };
-		const char backgroundNormal[8] = { 0x1b, '[', '1', ';', '4', '9', 'm', 0 };
-		const char normalStyle[8] = { 0x1b, '[', '1', ';', '3', '9', 'm', 0 };
-		const char defaultCellStyle[8] = { 0x1b, '[', '1', ';', '3', '0', 'm', 0 };
+    const char wallStyle[8] = { 0x1b,'[','1',';','3','7','m',0 };
+    const char robotStyle[8] = { 0x1b,'[','1',';','3','6','m',0 };
+    const char sensorStyle[8] = { 0x1b,'[','1',';','3','5','m',0 };
+    const char backgroundStyle[8] = { 0x1b,'[','0',';','4','0','m',0 };
+    const char backgroundNormal[8] = { 0x1b,'[','1',';','4','9','m',0 };
+    const char normalStyle[8] = { 0x1b,'[','1',';','3','9','m',0 };
+    const char defaultCellStyle[8] = { 0x1b,'[','1',';','3','0','m',0 };
 
-		const string cellFormat[3] = {
-			"WTTTO",
-			"LUXSR",
-			"YBBBV"
-   		};
+    const string cellFormat[3] = {
+        "WTTTO",
+        "LUXSR",
+        "YBBBV"
+    };
 
-   		const int N_ROWS = 2;
-		const int N_COLS = 4;
+    const int N_ROWS = 2;
+    const int N_COLS = 4;
 
-		const int FRAME_RATE_PER_SEC = 8;
+    const int FRAME_RATE_PER_SEC = 8;
 
-		void printWithStyle(bool condition, char c, const char style[]) {
-			if (condition) cout << style << c << defaultCellStyle;
-			else cout << NOTHING;
-		}
+    void printWithStyle(bool condition, char c, const char style[]) {
+        if (condition) cout << style << c << defaultCellStyle;
+        else cout << NOTHING;
+    }
 
-		void printWall(bool condition) {
-			if (condition) cout << wallStyle << WALL << defaultCellStyle;
-			else cout << WALL;
-		}
+    void printWall(bool condition) {
+        if (condition) cout << wallStyle << WALL << defaultCellStyle;
+        else cout << WALL;
+    }
 
-		void printIfNotRobotAndSensors(bool thereIsRobot, int sensors) {
-			if (thereIsRobot != sensors > 0) {
-	   			if (thereIsRobot) cout << robotStyle << robotChar() << defaultCellStyle;
-	   			else cout << sensorStyle << sensors%10 << defaultCellStyle;
-	   		}
-	   		else cout << NOTHING;
-		}
+    void printIfNotRobotAndSensors(bool thereIsRobot, int sensors) {
+        if (thereIsRobot != sensors > 0) {
+            if (thereIsRobot) cout << robotStyle << robotChar()
+                                   << defaultCellStyle;
+            else cout << sensorStyle << sensors%10 << defaultCellStyle;
+        }
+        else cout << NOTHING;
+    }
 
-		char robotChar() {
-			switch (robot.pose.orientation) {
-				case Orientation::LEFT: return ROBOT_LEFT;
-				case Orientation::RIGHT: return ROBOT_RIGHT;
-				case Orientation::UP: return ROBOT_UP;
-				case Orientation::DOWN: return ROBOT_DOWN;
-			}
-		}
+    char robotChar() {
+        switch (robot.pose.orientation) {
+            case Orientation::LEFT: return ROBOT_LEFT; 
+            case Orientation::RIGHT: return ROBOT_RIGHT;
+            case Orientation::UP: return ROBOT_UP;
+            case Orientation::DOWN: return ROBOT_DOWN;
+        }
+    }
 
-		void printCellElem(int row, int col, int x, int y, bool fuckingCorner = false) {
-			Position position(x, y);
+    void printCellElem(int row, int col, int x, int y, bool fCorner = false) {
+        Position position(x, y);
 
-		   	bool leftWall = not Pose(position, Orientation::LEFT).isClear();
-		   	bool rightWall = not Pose(position, Orientation::RIGHT).isClear();
-		   	bool upWall = not Pose(position, Orientation::UP).isClear();
-		   	bool downWall = not Pose(position, Orientation::DOWN).isClear();
+        bool leftWall = not Pose(position, Orientation::LEFT).isClear();
+        bool rightWall = not Pose(position, Orientation::RIGHT).isClear();
+        bool upWall = not Pose(position, Orientation::UP).isClear();
+        bool downWall = not Pose(position, Orientation::DOWN).isClear();
 
-		   	bool thereIsRobot = robot.pose.position == position;
+        bool thereIsRobot = robot.pose.position == position;
 
-		   	bool isFuckedUpCorner = fuckingCorner and not Pose(position + Orientation::UP, Orientation::LEFT).isClear(); 
+        bool isFuckedUpCorner = fCorner and not 
+                                Pose(position + Orientation::UP,
+                                     Orientation::LEFT)
+                                .isClear(); 
 
-		   	auto it = world.beepers.find(position);
-		   	int sensors = it == world.beepers.end() ? 0 : it->second;
+        auto it = world.beepers.find(position);
+        int sensors = it == world.beepers.end() ? 0 : it->second;
 
-		   	switch(cellFormat[row][col]) {
-		   		case 'W': printWall(leftWall or upWall or isFuckedUpCorner); break;
-		   		case 'L': printWall(leftWall); break;
-		   		case 'Y': printWall(leftWall or downWall); break;
-		   		case 'B': printWall(downWall); break;
-		   		case 'T': printWall(upWall); break;
-		   		case 'O': printWall(upWall or rightWall or isFuckedUpCorner); break;
-		   		case 'R': printWall(rightWall); break;
-		   		case 'V': printWall(downWall or rightWall); break;
-		   		case 'X': printIfNotRobotAndSensors(thereIsRobot, sensors); break;
-		   		case 'U': printWithStyle(thereIsRobot and sensors, robotChar(), robotStyle); break;
-		   		case 'S': printWithStyle(thereIsRobot and sensors, char(sensors%10 + '0'), sensorStyle); break;
-		   		default: ERROR("Invalid cell format character");
-		   	}
-		}
+        switch(cellFormat[row][col]) {
+            case 'W': printWall(leftWall or upWall or isFuckedUpCorner); break;
+            case 'L': printWall(leftWall); break;
+            case 'Y': printWall(leftWall or downWall); break;
+            case 'B': printWall(downWall); break;
+            case 'T': printWall(upWall); break;
+            case 'O': printWall(upWall or rightWall or isFuckedUpCorner); break;
+            case 'R': printWall(rightWall); break;
+            case 'V': printWall(downWall or rightWall); break;
+            case 'X': printIfNotRobotAndSensors(thereIsRobot, sensors); break;
+            case 'U': printWithStyle(thereIsRobot and sensors, 
+                                     robotChar(), robotStyle); break;
+            case 'S': printWithStyle(thereIsRobot and sensors, 
+                                     char(sensors%10 + '0'), sensorStyle); break;
+            default: ERROR("Invalid cell format character");
+        }
+    }
 
 	public:
 
-		void printWorld() {
-		   	cout << endl << backgroundStyle << defaultCellStyle;
+    void printWorld() {
+        cout << endl << backgroundStyle << defaultCellStyle;
 
-			for (int y = 0; y < world.sizeY; ++y) {
-				for (int row = 0; row < N_ROWS; ++row) {
-					for (int x = 0; x < world.sizeX; ++x) {
-						for (int col = 0; col < N_COLS; ++col) printCellElem(row, col, x, y, row == 0 and col == 0);
-					}
-					printCellElem(row, N_COLS, world.sizeX, y);
-					cout << endl;
-				}
-			}
+        for (int y = 0; y < world.sizeY; ++y) {
+            for (int row = 0; row < N_ROWS; ++row) {
+                for (int x = 0; x < world.sizeX; ++x) {
+                    for (int col = 0; col < N_COLS; ++col)
+                        printCellElem(row, col, x, y, row == 0 and col == 0);
+                }
+                printCellElem(row, N_COLS, world.sizeX, y);
+                cout << endl;
+            }
+        }
 
-			for (int i = 0; i < N_COLS*world.sizeX + 1; ++i) printCellElem(N_ROWS, i%N_COLS, i/N_COLS, world.sizeY);
+        for (int i = 0; i < N_COLS*world.sizeX + 1; ++i)
+            printCellElem(N_ROWS, i%N_COLS, i/N_COLS, world.sizeY);
 
-			cout << endl << backgroundNormal << normalStyle << "Robot: " << (robot.isOn ? "ON, " : "OFF, ") << robot.beeperCount << " beepers" << endl;
+        cout << endl << backgroundNormal << normalStyle << "Robot: "
+             << (robot.isOn ? "ON, " : "OFF, ") << robot.beeperCount 
+             << " beepers" << endl;
 
-			usleep(1000000/FRAME_RATE_PER_SEC);
-		}
+        usleep(1000000/FRAME_RATE_PER_SEC);
+    }
 };
 
 Debugger debugger;
@@ -628,7 +632,8 @@ void evaluateInstructions(AST* instr) {
 		else if (instr->kind == "move") robot.move();
 		else if (instr->kind == "putbeeper") robot.putBeeper();
 		else if (instr->kind == "pickbeeper") robot.pickBeeper();
-		else if (instr->kind == "id") evaluateInstructions(functionDefinitions.get(instr->text)); 
+		else if (instr->kind == "id") 
+            evaluateInstructions(functionDefinitions.get(instr->text)); 
 		else if (instr->kind == "turnoff") robot.turnOff();
 		else ERROR("Invalid instruction");
 
@@ -744,7 +749,8 @@ int main() {
 
 // Identifiers
 
-#token ID "[a-zA-Z_][a-zA-Z0-9_]*" // I define that they cannot start with numbers
+// I define that they cannot start with numbers
+#token ID "[a-zA-Z_][a-zA-Z0-9_]*"
 
 // Numbers
 
@@ -767,13 +773,15 @@ dorientation: TUP | TRIGHT | TDOWN | TLEFT;
 
 dboolean_query: FOUNDBEEPER | ISCLEAR | ANYBEEPERSINBAG;
 
-dboolean_atom: dboolean_query | NOT^ dboolean_atom | LPAREN! dlogical_expr RPAREN!;
+dboolean_atom: dboolean_query | NOT^ dboolean_atom 
+               | LPAREN! dlogical_expr RPAREN!;
 
 /* Instructions*/
 
-datomic_instruction: (TURNLEFT | MOVE | PUTBEEPER | PICKBEEPER | TURNOFF | ID) SEMICOLON!;
+datomic_instruction: (TURNLEFT | MOVE | PUTBEEPER | PICKBEEPER | TURNOFF | ID) 
+                     SEMICOLON!;
 
-dlogical_expr: dboolean_atom ((AND^ | OR^) dlogical_expr | ); 
+dlogical_expr: dboolean_atom ((AND^ | OR^) dboolean_atom)*; 
 
 dif: IF^ dlogical_expr LCURLYBRACKET! linstr RCURLYBRACKET!;
 
@@ -809,4 +817,5 @@ drobot: ROBOT^ NUMBER NUMBER NUMBER dorientation;
 
 definitions: (ddefinition)* <<#0=createASTlist(_sibling);>>;
 
-karel: dworld drobot definitions BEGIN! linstr END! <<#0=createASTlist(_sibling);>>;
+karel: dworld drobot definitions BEGIN! linstr END! 
+       <<#0=createASTlist(_sibling);>>;
