@@ -325,9 +325,9 @@ inline Orientation opposite(Orientation o) {
 // # Position
 
 inline bool Position::insideWorld() const {
-	return 0 < this->x and this->x < world.sizeX 
+	return 0 <= this->x and this->x < world.sizeX 
 			and 
-		   0 < this->y and this->y < world.sizeY;
+		   0 <= this->y and this->y < world.sizeY;
 }
 
 inline bool Position::hasBeeper() const {
@@ -354,6 +354,7 @@ void World::initialize(AST* worldNode) {
 }
 
 void World::addBeeper(AST* beeperNode) {
+    // On repeated calls with same position replaces previous value
 	AST* xNode = beeperNode;
 	AST* yNode = xNode->right;
 	AST* amountNode = yNode->right;
@@ -578,6 +579,11 @@ class Debugger {
 
 Debugger debugger;
 
+bool Robot::foundBeeper() {
+	// TODO: Ha de retornar cert si el robot està apagat?
+	return pose.position.hasBeeper();
+}
+
 // # Evaluation
 
 bool evaluateCondition(AST* a) {
@@ -614,7 +620,6 @@ void evaluateInstructions(AST*);
 void evaluateIterate(AST* iterate) {
 	int times = sti(iterate->kind);
 	AST* insList = iterate->right;
-
 	while (times--) evaluateInstructions(child(insList, 0));
 } 
 
@@ -625,6 +630,14 @@ void evaluateIf(AST* _if) {
 void evaluateInstructions(AST* instr) {
 	debugger.printWorld();
 
+	while (times--) evaluateInstructions(child(insList, 0));
+} 
+
+void evaluateIf(AST* _if) {
+	if (evaluateCondition(_if)) evaluateInstructions(child(_if->right, 0));
+}
+
+void evaluateInstructions(AST* instr) {
 	while (instr != NULL) {
 		if (instr->kind == "iterate") evaluateIterate(child(instr, 0));
 		else if (instr->kind == "if") evaluateIf(child(instr, 0));
