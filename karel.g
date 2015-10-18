@@ -36,14 +36,15 @@ AST* createASTnode(Attrib* attr,int ttype, char *textt);
 
 <<
 #include <cstdlib>
+#include <cstring>
 #include <cmath>
 #include <unordered_set>
 #include <unordered_map>
+#include <stdio.h>
 
 #include <cassert>
 #include <unistd.h>
 
-#define ERROR(string) cerr << string << endl; assert(false);
 
 /* ################################################# */
 /* ## T O K E N    A N D    A S T    H A N D L I N G */
@@ -308,7 +309,6 @@ inline Orientation sToOrientation(const string& s) {
 		case 'r': return Orientation::RIGHT;
 		case 'd': return Orientation::DOWN;
 		case 'l': return Orientation::LEFT;
-		default: ERROR("Invalid orientation string");
 	}
 }
 
@@ -318,7 +318,6 @@ inline Orientation opposite(Orientation o) {
 		case Orientation::RIGHT: return Orientation::LEFT;
 		case Orientation::UP: return Orientation::DOWN;
 		case Orientation::DOWN: return Orientation::UP;
-		default: ERROR("Orientation case missing");
 	}
 }
 
@@ -454,10 +453,22 @@ bool Robot::foundBeeper() {
 	return pose.position.hasBeeper();
 }
 
+// Funcions enunciat (no usades)
+
+AST* findDefinition(string id) { return functionDefinitions.get(id); }
+bool dinsDominis(int x, int y) { return Position(x, y).insideWorld(); }
+bool isClear(int x, int y, int orient) { 
+    return Pose(Position(x, y), static_cast<Orientation>(orient)).isClear(); 
+}
+
 // # Debugging
 
 class Debugger {
 	private:
+
+    bool debugging_instr;
+    bool enabled;
+    bool colors;
     
     const char WALL = '#';
     const char NOTHING = ' ';
@@ -475,6 +486,14 @@ class Debugger {
     const char normalStyle[8] = { 0x1b,'[','1',';','3','9','m',0 };
     const char defaultCellStyle[8] = { 0x1b,'[','1',';','3','0','m',0 };
 
+    const unordered_set<string> ins_debug = {
+        "turnleft", 
+        "move", 
+        "pickbeeper", 
+        "putbeeper", 
+        "turnoff" 
+    };
+    
     const string cellFormat[3] = {
         "WTTTO",
         "LUXSR",
@@ -484,23 +503,34 @@ class Debugger {
     const int N_ROWS = 2;
     const int N_COLS = 4;
 
-    const int FRAME_RATE_PER_SEC = 8;
+    const int FRAME_RATE_PER_SEC = 4;
+
+    void setStyle(const char style[]) {
+        if (colors) cout << style;
+    }
 
     void printWithStyle(bool condition, char c, const char style[]) {
-        if (condition) cout << style << c << defaultCellStyle;
+        if (condition) {
+            setStyle(style); cout << c; setStyle(defaultCellStyle);
+        }
         else cout << NOTHING;
     }
 
     void printWall(bool condition) {
-        if (condition) cout << wallStyle << WALL << defaultCellStyle;
+        if (condition) {
+            setStyle(wallStyle); cout << WALL; setStyle(defaultCellStyle);
+        }
         else cout << WALL;
     }
 
-    void printIfNotRobotAndSensors(bool thereIsRobot, int sensors) {
+    void printUnlessRobotAndSensors(bool thereIsRobot, int sensors) {
         if (thereIsRobot != sensors > 0) {
-            if (thereIsRobot) cout << robotStyle << robotChar()
-                                   << defaultCellStyle;
-            else cout << sensorStyle << sensors%10 << defaultCellStyle;
+            if (thereIsRobot) {
+                setStyle(robotStyle); cout << robotChar(); setStyle(defaultCellStyle);
+            }
+            else {
+                setStyle(sensorStyle); cout << sensors%10; setStyle(defaultCellStyle);
+            }
         }
         else cout << NOTHING;
     }
@@ -514,7 +544,7 @@ class Debugger {
         }
     }
 
-    void printCellElem(int row, int col, int x, int y, bool fCorner = false) {
+    void printCellElem(int row, int col, int x, int y, bool fC1 = false, bool fC2 = false) {
         Position position(x, y);
 
         bool leftWall = not Pose(position, Orientation::LEFT).isClear();
@@ -524,10 +554,15 @@ class Debugger {
 
         bool thereIsRobot = robot.pose.position == position;
 
-        bool isFuckedUpCorner = fCorner and not 
+        bool isFuckedUpCorner = (fC1 and (not 
                                 Pose(position + Orientation::UP,
-                                     Orientation::LEFT)
-                                .isClear(); 
+                                     Orientation::LEFT).isClear()) or
+                                     not Pose(position + Orientation::LEFT, 
+                                     Orientation::UP).isClear())
+                                     or 
+                                (fC2 and not 
+                                Pose(position + Orientation::UP, 
+                                     Orientation::RIGHT).isClear());
 
         auto it = world.beepers.find(position);
         int sensors = it == world.beepers.end() ? 0 : it->second;
@@ -541,19 +576,38 @@ class Debugger {
             case 'O': printWall(upWall or rightWall or isFuckedUpCorner); break;
             case 'R': printWall(rightWall); break;
             case 'V': printWall(downWall or rightWall); break;
-            case 'X': printIfNotRobotAndSensors(thereIsRobot, sensors); break;
+            case 'X': printUnlessRobotAndSensors(thereIsRobot, sensors); break;
             case 'U': printWithStyle(thereIsRobot and sensors, 
                                      robotChar(), robotStyle); break;
             case 'S': printWithStyle(thereIsRobot and sensors, 
                                      char(sensors%10 + '0'), sensorStyle); break;
-            default: ERROR("Invalid cell format character");
         }
     }
 
 	public:
 
-    void printWorld() {
-        cout << endl << backgroundStyle << defaultCellStyle;
+    Debugger() : enabled(true), debugging_instr(false) {
+        colors = isatty(fileno(stdout));
+    }
+
+    inline void debugInstructions(bool b) { debugging_instr = b; }
+
+    inline void disable() { enabled = false; }
+
+    inline void enable() { enabled = true; }
+
+    void printWorld(const string& msg, bool special = false) {
+        if (not enabled) return;
+        if (not special and (not debugging_instr 
+            or ins_debug.find(msg) == ins_debug.end())) return;
+
+        cout << endl;
+
+        setStyle(backgroundNormal); setStyle(normalStyle);
+        
+        cout << msg << ":" << endl;
+
+        setStyle(backgroundStyle); setStyle(defaultCellStyle);
 
         for (int y = 0; y < world.sizeY; ++y) {
             for (int row = 0; row < N_ROWS; ++row) {
@@ -561,19 +615,23 @@ class Debugger {
                     for (int col = 0; col < N_COLS; ++col)
                         printCellElem(row, col, x, y, row == 0 and col == 0);
                 }
-                printCellElem(row, N_COLS, world.sizeX, y);
+                printCellElem(row, N_COLS, world.sizeX - 1, y, false, true);
                 cout << endl;
             }
         }
 
         for (int i = 0; i < N_COLS*world.sizeX + 1; ++i)
-            printCellElem(N_ROWS, i%N_COLS, i/N_COLS, world.sizeY);
-
-        cout << endl << backgroundNormal << normalStyle << "Robot: "
+            printCellElem(N_ROWS, i%(N_COLS + 1), i/(N_COLS + 1), world.sizeY - 1);
+        
+        cout << endl;
+        
+        setStyle(backgroundNormal); setStyle(normalStyle);
+        
+        cout << "Robot: "
              << (robot.isOn ? "ON, " : "OFF, ") << robot.beeperCount 
              << " beepers" << endl;
 
-        usleep(1000000/FRAME_RATE_PER_SEC);
+        if (not special) usleep(1000000/FRAME_RATE_PER_SEC);
     }
 };
 
@@ -581,22 +639,21 @@ Debugger debugger;
 
 // # Evaluation
 
-bool evaluateCondition(AST* a) {
+bool avaluaCondicio(AST* a) {
 	AST* fc;
 
 	if (a->kind == "foundBeeper") return robot.foundBeeper();
 	else if (a->kind == "isClear") return robot.pose.isClear();
 	else if (a->kind == "anyBeepersInBag") return robot.beeperCount > 0;
-	else if (a->kind == "not") return not evaluateCondition(child(a, 0));
+	else if (a->kind == "not") return not avaluaCondicio(child(a, 0));
 	else if (a->kind == "and") {
 		fc = child(a, 0); 
-		return evaluateCondition(fc) and evaluateCondition(fc->right);
+		return avaluaCondicio(fc) and avaluaCondicio(fc->right);
 	}
 	else if (a->kind == "or") {
 		fc = child(a, 0);
-		return evaluateCondition(fc) or evaluateCondition(fc->right);	
+		return avaluaCondicio(fc) or avaluaCondicio(fc->right);	
 	}
-	else ERROR("Invalid condition");
 }
 
 void evaluateDefinitions(AST* def) {
@@ -604,7 +661,6 @@ void evaluateDefinitions(AST* def) {
 		if (def->kind == "walls") world.addWalls(child(def, 0));
 		else if (def->kind == "beepers") world.addBeeper(child(def, 0));
 		else if (def->kind == "define") functionDefinitions.add(child(def, 0));
-		else ERROR("Invalid definition");
 
 		advance(def);
 	}
@@ -619,7 +675,7 @@ void evaluateIterate(AST* iterate) {
 } 
 
 void evaluateIf(AST* _if) {
-	if (evaluateCondition(_if)) evaluateInstructions(child(_if->right, 0));
+	if (avaluaCondicio(_if)) evaluateInstructions(child(_if->right, 0));
 }
 
 void evaluateInstructions(AST* instr) {
@@ -633,7 +689,8 @@ void evaluateInstructions(AST* instr) {
 		else if (instr->kind == "id") 
             evaluateInstructions(functionDefinitions.get(instr->text)); 
 		else if (instr->kind == "turnoff") robot.turnOff();
-		else ERROR("Invalid instruction");
+
+        debugger.printWorld(instr->kind);
 
 		advance(instr);
 	}
@@ -641,7 +698,7 @@ void evaluateInstructions(AST* instr) {
 
 // # Main methods
 
-void newPosition(AST* root) {
+void novaPosicio(AST* root) {
 	AST* worldNode = child(root, 0);
 	AST* robotNode = worldNode->right;
 	AST* definitionsList = robotNode->right;
@@ -652,21 +709,28 @@ void newPosition(AST* root) {
 
 	evaluateDefinitions(child(definitionsList, 0));
 	
-	debugger.printWorld();
+	debugger.printWorld("BEGGINING", true);
 
 	evaluateInstructions(child(instructionsList, 0));
-
-	cout << robot.pose.position << endl;
+    
+    debugger.printWorld("END", true);
+    
+	cout << endl << "Ending position: " << robot.pose.position << endl;
 }
 
-int main() {
+int main(int argc, char** argv) {
 	AST* root = NULL;
 	
 	ANTLR(karel(&root), stdin);
 
 	ASTPrint(root);
 	
-	newPosition(root); 
+    if (argc > 1) {
+        if (strcmp(argv[1], "-nd") == 0) debugger.disable();
+        else if (strcmp(argv[1], "-v") == 0) debugger.debugInstructions(true);
+    }
+
+	novaPosicio(root); 
 }
 >>
 
